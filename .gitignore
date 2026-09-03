@@ -1,33 +1,21 @@
-### Virtual Environment
-
-venv/
+# Python environment and artifacts
+__pycache__/
+*.py[cod]
+*$py.class
 .venv/
+venv/
+ENV/
 env/
-ENV/ 
+.env
 
-### Environment Variables (Sensitive Data)
+# Streamlit configuration and data
+.streamlit/
 
-.env 
+# Application SQLite Database
+chatbot.db
+chatbot.db-shm
+chatbot.db-wal
 
-### SQLite Database (LangGraph Persistence)
-
-*.sqlite
-*.db 
-
-### Python Caches & Compiled files
-
-**pycache**/
-*.pyc
-*.pyo
-*.pyd
-.pytest_cache/
-.mypy_cache/ 
-
-### Streamlit Caches & Configuration
-
-.streamlit/ 
-
-### OS generated files
-
+# OS specific files
 .DS_Store
 Thumbs.db
