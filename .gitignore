@@ -15,6 +15,7 @@ env/
 chatbot.db
 chatbot.db-shm
 chatbot.db-wal
+chatbot.db-x-checkpoints-2-checkpoint.bin
 
 # OS specific files
 .DS_Store
