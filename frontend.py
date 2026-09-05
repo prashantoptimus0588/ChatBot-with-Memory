@@ -1,6 +1,6 @@
 import streamlit as st
 from backend import chatbot, retrieve_all_threads
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage, ToolMessage
 import uuid
 
 # **************************************** utility functions *************************
@@ -62,7 +62,7 @@ st.sidebar.subheader('Chat History')
 for thread_id in st.session_state['chat_threads'][::-1]:
     # Dynamic label from our mapping dictionary
     button_label = st.session_state['thread_titles'].get(thread_id, str(thread_id))
-    
+
     if st.sidebar.button(button_label, key=f"btn_{thread_id}"):
         st.session_state['thread_id'] = thread_id
         messages = load_conversation(thread_id)
@@ -103,13 +103,42 @@ if user_input:
     }
 
     with st.chat_message('assistant'):
-        ai_message = st.write_stream(
-            message_chunk.content for message_chunk, metadata in chatbot.stream(
-                {'messages': [HumanMessage(content=user_input)]},
+        # Lazily-created status box: only appears if a tool actually gets called
+        status_holder = {"box": None}
+        tool_call_names = {}  # tool_call_id -> tool name, so we can label the ToolMessage result
+
+        def ai_only_stream():
+            for message_chunk, metadata in chatbot.stream(
+                {"messages": [HumanMessage(content=user_input)]},
                 config=CONFIG,
-                stream_mode='messages'
-            )
-        )
+                stream_mode="messages"
+            ):
+                # LLM asked to call one or more tools
+                if isinstance(message_chunk, AIMessage) and message_chunk.tool_calls:
+                    if status_holder["box"] is None:
+                        status_holder["box"] = st.status("Using tools...", expanded=True)
+                    for tc in message_chunk.tool_calls:
+                        tool_call_names[tc["id"]] = tc["name"]
+                        arg_preview = ", ".join(f"{k}={v!r}" for k, v in tc["args"].items())
+                        status_holder["box"].write(f"🔧 Running `{tc['name']}`({arg_preview})...")
+
+                # A tool finished executing and returned its result
+                elif isinstance(message_chunk, ToolMessage):
+                    name = tool_call_names.get(
+                        message_chunk.tool_call_id, getattr(message_chunk, "name", "tool")
+                    )
+                    if status_holder["box"] is not None:
+                        status_holder["box"].write(f"✅ `{name}` finished")
+
+                # Final assistant answer text — stream only this to the chat bubble
+                if isinstance(message_chunk, AIMessage) and message_chunk.content:
+                    yield message_chunk.content
+
+        ai_message = st.write_stream(ai_only_stream())
+
+        # Collapse the status box once everything is done
+        if status_holder["box"] is not None:
+            status_holder["box"].update(label="Tools finished", state="complete", expanded=False)
 
     st.session_state['message_history'].append({'role': 'assistant', 'content': ai_message})
     st.rerun()
